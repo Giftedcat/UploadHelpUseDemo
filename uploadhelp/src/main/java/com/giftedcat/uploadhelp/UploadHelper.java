@@ -32,13 +32,6 @@ public class UploadHelper {
     }
 
     /**
-     * 添加记录
-     * */
-    public void addRecord(Attendance data){
-        DBHelper.getInstance().getSession().getAttendanceDao().insert(data);
-    }
-
-    /**
      * 开启上传线程
      */
     public void startUpThread() {
@@ -46,6 +39,69 @@ public class UploadHelper {
             return;
         }
         singleThreadExecutor.execute(upRunnable);
+    }
+
+    /**
+     * 自建一个Runnable判断activity是否销毁，防止内存泄露
+     * */
+    private class UpRunnable implements Runnable {
+
+        private WeakReference<Activity> activityWeakReference;
+
+        public UpRunnable(Activity activity) {
+            //使用弱引用赋值
+            activityWeakReference = new WeakReference<>(activity);
+        }
+
+        @Override
+        public void run() {
+            //判断activity是否已销毁
+            if (activityWeakReference.get() != null){
+                upRecord();
+            }
+        }
+    }
+
+    private void upRecord() {
+        Attendance Attendance = queue.poll();
+        if (null == Attendance) {
+            //没有需要上传的文件
+            LogUtils.d("上传队列为空 2秒后开始 检查是否存在上报");
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            handleLocalAttendance();
+            startUpThread();
+        } else {
+            //有需要上传的文件，回调给页面
+            if (onUploadListener != null) {
+                onUploadListener.onUpload(Attendance);
+            } else {
+                startUpThread();
+            }
+        }
+    }
+
+    /**
+     * 查询是否有上传任务
+     */
+    private void handleLocalAttendance() {
+        List<Attendance> attendances = DBHelper.getInstance().getSession().getAttendanceDao()
+                .queryBuilder().where(AttendanceDao.Properties.IsUpload.eq(false))
+                .list();
+        if (null != attendances && attendances.size() > 0) {
+            queue.addAll(attendances);
+        }
+    }
+
+    /**
+     * 将记录标记为上传成功
+     */
+    private void upLocatAttenOk(Attendance Attendance) {
+        Attendance.setIsUpload(true);
+        DBHelper.getInstance().getSession().getAttendanceDao().update(Attendance);
     }
 
     /**
@@ -76,62 +132,11 @@ public class UploadHelper {
         this.onUploadListener = onUploadListener;
     }
 
-    private void upRecord() {
-        Attendance Attendance = queue.poll();
-        if (null == Attendance) {
-            //没有需要上传的文件
-            LogUtils.d("上传队列为空 2秒后开始 检查是否存在上报");
-            try {
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            handleLocalAttendance();
-            startUpThread();
-        } else {
-            //有需要上传的文件，回调给页面
-            if (onUploadListener != null) {
-                onUploadListener.onUpload(Attendance);
-            } else {
-                startUpThread();
-            }
-        }
-    }
-
     /**
-     * 将记录标记为上传成功
-     */
-    private void upLocatAttenOk(Attendance Attendance) {
-        Attendance.setIsUpload(true);
-        DBHelper.getInstance().getSession().getAttendanceDao().update(Attendance);
-    }
-
-    /**
-     * 添加 上传任务
-     */
-    private void handleLocalAttendance() {
-        List<Attendance> attendances = DBHelper.getInstance().getSession().getAttendanceDao()
-                .queryBuilder().where(AttendanceDao.Properties.IsUpload.eq(false))
-                .list();
-        if (null != attendances && attendances.size() > 0) {
-            queue.addAll(attendances);
-        }
-    }
-
-    private class UpRunnable implements Runnable {
-
-        private WeakReference<Activity> activityWeakReference;
-
-        public UpRunnable(Activity activity) {
-            activityWeakReference = new WeakReference<>(activity);
-        }
-
-        @Override
-        public void run() {
-            if (activityWeakReference.get() != null){
-                upRecord();
-            }
-        }
+     * 添加记录
+     * */
+    public void addRecord(Attendance data){
+        DBHelper.getInstance().getSession().getAttendanceDao().insert(data);
     }
 
     /**
