@@ -168,5 +168,3 @@ attendance.setAttendanceDate(new Date());
 uploadHelper.addRecord(attendance);
 updateDataList();
 ```
-
-最后再贴上源码：[https://github.com/Giftedcat/UploadHelpUseDemo](https://github.com/Giftedcat/UploadHelpUseDemo)
